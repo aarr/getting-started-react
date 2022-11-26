@@ -49,3 +49,9 @@ ol, ul {
   margin-left: 20px;
 }
 
+.current-turn {
+  font-weight: bold;
+}
+.end-turn {
+  background-color: crimson;
+}

@@ -7,8 +7,12 @@ import "./index.css";
 // 引数にprops（コンポーネントへ受け渡している属性群）を受け取り、
 // returnを実装するのみでOK
 function Square(props) {
+  const clazz = ["square"];
+  if (props.isEndTurn) {
+    clazz.push("end-turn");
+  }
   return (
-    <button className="square" onClick={props.onClick}>
+    <button className={clazz.join(" ")} onClick={props.onClick}>
       {props.value}
     </button>
   );
@@ -20,13 +24,17 @@ class Board extends React.Component {
     // const _this = this;
     return (
       <Square
+        key={i}
         // Reactオブジェクトからpropsの利用が可能
         // propsを利用することでコンポーネントを生成する際に、指定された属性情報の取得が可能
-        value={this.props.squares[i]}
+        value={this.props.borad.squares[i]}
         // Arrow関数を利用 → コンテキストがReactオブジェクト
         onClick={() => {
           this.props.onClick(i);
         }}
+        isEndTurn={
+          this.props.borad.isDecidedWinner && this.props.borad.value === i
+        }
 
         // 通常の関数を利用 → コンテキストがReactオブジェクトでない
         // その為、Reactオブジェクトを退避しておき利用する必要がある
@@ -40,25 +48,17 @@ class Board extends React.Component {
   }
 
   render() {
-    return (
-      <div>
-        <div className="board-row">
-          {this.renderSquare(0)}
-          {this.renderSquare(1)}
-          {this.renderSquare(2)}
+    const rows = [...Array(this.props.size)].map((rVal, rIndex) => {
+      let cols = [...Array(this.props.size)].map((cVal, cIndex) =>
+        this.renderSquare(this.props.size * rIndex + cIndex)
+      );
+      return (
+        <div key={rIndex} className="board-row">
+          {cols}
         </div>
-        <div className="board-row">
-          {this.renderSquare(3)}
-          {this.renderSquare(4)}
-          {this.renderSquare(5)}
-        </div>
-        <div className="board-row">
-          {this.renderSquare(6)}
-          {this.renderSquare(7)}
-          {this.renderSquare(8)}
-        </div>
-      </div>
-    );
+      );
+    });
+    return <div>{rows}</div>;
   }
 }
 
@@ -68,14 +68,43 @@ class Game extends React.Component {
     super(props);
     // Gameコンポーネント内でPrivateとみなすべきもの
     // 状態を保持できる。
+    const size = Number(props.size);
+    // 縦、横、斜の勝利ラインの要素配列生成
+    const victoryLines = [...Array(size)]
+      // 横
+      .map((iVal, iIndex) =>
+        [...Array(size)].map((jVal, jIndex) => size * iIndex + jIndex)
+      )
+      // 縦
+      .concat(
+        [...Array(size)].map((iVal, iIndex) =>
+          [...Array(size)].map((jVal, jIndex) => iIndex + size * jIndex)
+        )
+      )
+      // 斜
+      .concat(
+        Array.of([...Array(size)].map((iVal, iIndex) => (size + 1) * iIndex))
+      )
+      .concat(
+        Array.of(
+          [...Array(size)].map((iVal, iIndex) => (size - 1) * (iIndex + 1))
+        )
+      );
+
     this.state = {
+      size: size,
       history: [
         {
-          squares: Array(9).fill(null),
+          squares: Array(size * size).fill(null),
+          value: null,
+          isFinished: false,
         },
       ],
+      isHistorySortAsc: true,
       xIsNext: true,
       currentStepNumber: 0,
+      isGameOver: false,
+      victoryLines: victoryLines,
     };
   }
 
@@ -86,17 +115,20 @@ class Game extends React.Component {
     );
     const current = history[history.length - 1];
     const squares = current.squares.slice();
-    if (calculateWinner(squares) || squares[value]) {
+    // 勝敗が決している、もしくは既に選択済の要素指定
+    if (calculateWinner(squares, this.state.victoryLines) || squares[value]) {
       return;
     }
+
     squares[value] = this.state.xIsNext ? "X" : "Ｏ";
 
     // setStateすることで再描画（reander）される
     this.setState({
-      history: history.concat([{ squares: squares }]),
-      squares: squares,
+      history: history.concat([{ squares: squares, value: value }]),
       currentStepNumber: history.length,
       xIsNext: !this.state.xIsNext,
+      isGameOver:
+        this.state.history.length >= this.state.size * this.state.size - 1,
     });
   }
 
@@ -105,26 +137,47 @@ class Game extends React.Component {
     this.setState({
       currentStepNumber: step,
       xIsNext: step % 2 === 0,
+      isGameOver: false,
+    });
+  }
+
+  reverseHistory() {
+    this.setState({
+      isHistorySortAsc: !this.state.isHistorySortAsc,
     });
   }
 
   render() {
     const history = this.state.history;
     const current = history[this.state.currentStepNumber];
-    const winner = calculateWinner(current.squares);
+    const winner = calculateWinner(current.squares, this.state.victoryLines);
 
     const steps = history.map((board, step) => {
-      const desc = step ? `Go to move #${step}` : `Go to game start`;
+      const clazz = this.state.currentStepNumber === step ? "current-turn" : "";
+      const value = board.value;
+      const col = (value % this.state.size) + 1;
+      const row = Math.floor(value / this.state.size) + 1;
+      const desc = step
+        ? `Go to move #${step} => (${col}, ${row}):${board.squares[value]}`
+        : `Go to game start`;
       return (
         <li key={step}>
-          <button onClick={() => this.jumpTo(step)}>{desc}</button>
+          <button onClick={() => this.jumpTo(step)} className={clazz}>
+            {desc}
+          </button>
         </li>
       );
     });
+    if (!this.state.isHistorySortAsc) {
+      steps.reverse();
+    }
 
     let status;
-    if (winner) {
+    if (this.state.isGameOver) {
+      status = "引き分けです";
+    } else if (winner) {
       status = `Winner: ${winner}`;
+      current.isDecidedWinner = true;
     } else {
       status = `Next player: ${this.state.xIsNext ? "Ｘ" : "Ｏ"}`;
     }
@@ -133,12 +186,14 @@ class Game extends React.Component {
       <div className="game">
         <div className="game-board">
           <Board
-            squares={current.squares}
+            borad={current}
             onClick={(i) => this.handleClick(i)}
+            size={this.state.size}
           />
         </div>
         <div className="game-info">
           <div className="status">{status}</div>
+          <button onClick={() => this.reverseHistory()}>Reverse History</button>
           <ol>{steps}</ol>
         </div>
       </div>
@@ -146,26 +201,20 @@ class Game extends React.Component {
   }
 }
 
-function calculateWinner(squares) {
-  const lines = [
-    [0, 1, 2],
-    [3, 4, 5],
-    [6, 7, 8],
-    [0, 3, 6],
-    [1, 4, 7],
-    [2, 5, 8],
-    [0, 4, 8],
-    [2, 4, 6],
-  ];
-  for (let i = 0; i < lines.length; i++) {
-    const [a, b, c] = lines[i];
-    if (squares[a] && squares[a] === squares[b] && squares[a] === squares[c]) {
-      return squares[a];
+function calculateWinner(squares, lines) {
+  const size = lines[0].length;
+  // ライン上の全ての要素が同じ値であるかを判定する
+  const result = lines.find((line) => {
+    const firstElem = squares[line[0]];
+    if (firstElem) {
+      return size === line.filter((elem) => firstElem === squares[elem]).length;
+    } else {
+      return false;
     }
-  }
-  return null;
+  });
+  return result ? squares[result[0]] : null;
 }
 // ========================================
 
 const root = ReactDOM.createRoot(document.getElementById("root"));
-root.render(<Game />);
+root.render(<Game size="3" />);
