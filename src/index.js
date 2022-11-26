@@ -19,6 +19,22 @@ function Square(props) {
 }
 
 class Board extends React.Component {
+  // 関数指定：例３用のサンプル実装
+  /*
+  constructor(props) {
+    super(props);
+    // ３−１.実行コンテキストをbind
+    this.onClick = this.onClick.bind(this);
+  }
+  onClick() {
+    // do nothing
+  }
+  // ３−２.フィールドとして定義
+  onClick = function() {
+    // do nothing
+  }
+  */
+
   renderSquare(i) {
     // 通常関数を利用の為、Reactオブジェクトを退避
     // const _this = this;
@@ -28,6 +44,7 @@ class Board extends React.Component {
         // Reactオブジェクトからpropsの利用が可能
         // propsを利用することでコンポーネントを生成する際に、指定された属性情報の取得が可能
         value={this.props.borad.squares[i]}
+        // 関数指定：例１
         // Arrow関数を利用 → コンテキストがReactオブジェクト
         onClick={() => {
           this.props.onClick(i);
@@ -36,6 +53,7 @@ class Board extends React.Component {
           this.props.borad.isDecidedWinner && this.props.borad.value === i
         }
 
+        // 関数指定：例２
         // 通常の関数を利用 → コンテキストがReactオブジェクトでない
         // その為、Reactオブジェクトを退避しておき利用する必要がある
         /*
@@ -43,6 +61,12 @@ class Board extends React.Component {
           _this.props.onClick(i);
         }}
         */
+
+        // 関数指定：例３
+        // 関数を参照するには、実行コンテキストにReactオブジェクトをbindしておく
+        /*
+       onClick{this.onClick}
+       */
       />
     );
   }
